@@ -46,8 +46,6 @@ class MTimeMixin:
 
 
 class DisplayablePath(object):
-    # https://stackoverflow.com/questions/9727673/list-directory-tree-structure-in-python
-    
     display_filename_prefix_middle = '├──'
     display_filename_prefix_last = '└──'
     display_parent_prefix_middle = '    '
@@ -96,12 +94,6 @@ class DisplayablePath(object):
     def _default_criteria(cls, path):
         return True
 
-    @property
-    def displayname(self):
-        if self.path.is_dir():
-            return self.path.name + '/'
-        return self.path.name
-
     def displayable(self):
         if self.parent is None:
             return self.displayname
@@ -121,51 +113,3 @@ class DisplayablePath(object):
             parent = parent.parent
 
         return ''.join(reversed(parts))
-
-
-class TableReplaceMixin:
-
-    def create_table(self, engine):
-        """
-        Override to provide code for creating the target table.
-
-        By default it will be created using types specified in columns.
-        If the table exists, then it binds to the existing table.
-
-        If overridden, use the provided connection object for setting up the table in order to
-        create the table and insert data using the same transaction.
-        :param engine: The sqlalchemy engine instance
-        :type engine: object
-        """
-        def construct_sqla_columns(columns):
-            retval = [Column(*c[0], **c[1]) for c in columns]
-            return retval
-
-        needs_setup = (len(self.columns) == 0) or (False in [len(c) == 2 for c in self.columns]) if not self.reflect else False
-        if needs_setup:
-            # only names of columns specified, no types
-            raise NotImplementedError("create_table() not implemented for %r and columns types not specified" % self.table)
-        else:
-            # if columns is specified as (name, type) tuples
-            with engine.begin() as con:
-                 
-                if self.schema:
-                    metadata = MetaData(schema=self.schema)
-                else:
-                    metadata = MetaData()
-
-                try:
-                    # Check to see if table exists and drop it then recreate table
-                    # https://stackoverflow.com/questions/35918605/how-to-delete-a-table-in-sqlalchemy
-
-                    existing_table = MetaData(con, reflect=True).tables.get(self.table)
-                    if existing_table is not None:
-                        base = declarative_base()
-                        base.metadata.drop_all(engine, [existing_table], checkfirst=True)
-
-                    sqla_columns = construct_sqla_columns(self.columns)
-                    self.table_bound = Table(self.table, metadata, *sqla_columns)
-                    metadata.create_all(engine)
-
-                except Exception as e:
-                    self._logger.exception(self.table + str(e))        
